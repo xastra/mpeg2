@@ -1,0 +1,21 @@
+ printf("Usage:  mpeg2decode {options}\n\
+Options: -b  file  main bitstream (base or spatial enhancement layer)\n\
+         -cn file  conformance report (n: level)\n\
+         -e  file  enhancement layer bitstream (SNR or Data Partitioning)\n\
+         -f        store/display interlaced video in frame format\n\
+         -g        concatenated file format for substitution method (-x)\n\
+         -in file  information & statistics report  (n: level)\n\
+         -l  file  file name pattern for lower layer sequence\n\
+                   (for spatial scalability)\n\
+         -on file  output format (0:YUV 1:SIF 2:TGA 3:PPM 4:X11 5:X11HiQ)\n\
+         -q        disable warnings to stderr\n\
+         -r        use double precision reference IDCT\n\
+         -t        enable low level tracing to stdout\n\
+         -u  file  print user_data to stdio or file\n\
+         -vn       verbose output (n: level)\n\
+         -x  file  filename pattern of picture substitution sequence\n\n\
+File patterns:  for sequential filenames, \"printf\" style, e.g. rec%%d\n\
+                 or rec%%d%%c for fieldwise storage\n\
+Levels:        0:none 1:sequence 2:picture 3:slice 4:macroblock 5:block\n\n\
+Example:       mpeg2decode -b bitstream.mpg -f -r -o0 rec%%d\n\
+         \n");
