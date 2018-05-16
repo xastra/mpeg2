@@ -37,11 +37,28 @@
 static void calc_actj _ANSI_ARGS_((unsigned char *frame));
 static double var_sblk _ANSI_ARGS_((unsigned char *p, int lx));
 
-/* rate control variables */
+/* rate control variables 
+
+global complexity measures (I,P,B): Xi,Xp,Xb
+virtual buffer fullness:d0i,d0p,d0b
+*/
 int Xi, Xp, Xb, r, d0i, d0p, d0b;
 double avg_act;
+
+/*
+R: remaining # of bits in GOP 
+T: target number of bits
+d: 实际码率与目标码率的差值
+*/
 static int R, T, d;
 static double actsum;
+
+/*
+Np：GOP中p帧数量
+Nb: GOP中b帧数量
+S: GOP中已使用的码率
+Q：用于计算平均量化参数
+*/
 static int Np, Nb, S, Q;
 static int prev_mquant;
 

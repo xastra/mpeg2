@@ -97,7 +97,7 @@ unsigned char *frame;
 
       mb_type = mbinfo_[k].mb_type;
 
-      /* determine mquant (rate control) */
+      /* determine mquant (rate control) 根据剩余的码率来决定量化值*/
       mbinfo_[k].mquant = rc_calc_mquant(k);
 
       /* quantize macroblock */

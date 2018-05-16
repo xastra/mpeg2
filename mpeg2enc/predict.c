@@ -539,6 +539,7 @@ int mvx, mvy;
   }
 }
 
+//将所有值置为128
 static void clearblock(cur,i0,j0)
 unsigned char *cur[];
 int i0, j0;

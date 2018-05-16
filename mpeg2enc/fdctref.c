@@ -67,6 +67,7 @@ short *block;
   double s;
   double tmp[64];
 
+  //行一维DCT
   for (i=0; i<8; i++)
     for (j=0; j<8; j++)
     {
@@ -78,6 +79,7 @@ short *block;
       tmp[8*i+j] = s;
     }
 
+  //列一维DCT
   for (j=0; j<8; j++)
     for (i=0; i<8; i++)
     {
