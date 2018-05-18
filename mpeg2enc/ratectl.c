@@ -47,7 +47,7 @@ double avg_act;
 
 /*
 R: remaining # of bits in GOP 
-T: target number of bits
+T: target number of bits of current frame
 d: 实际码率与目标码率的差值
 */
 static int R, T, d;
@@ -56,8 +56,8 @@ static double actsum;
 /*
 Np：GOP中p帧数量
 Nb: GOP中b帧数量
-S: GOP中已使用的码率
-Q：用于计算平均量化参数
+S: total # of bits in picture
+Q：所有量化值总和
 */
 static int Np, Nb, S, Q;
 static int prev_mquant;
@@ -124,14 +124,28 @@ unsigned char *frame;
   switch (pict_type)
   {
   case I_TYPE:
+	/*
+	Np*Xp/(Xi*1.0)  Np相当于几个I帧
+	Nb*Xb/(Xi*1.4)  Nb相当于几个I帧
+
+	最终计算出平均一帧的平均码率 T
+	*/
     T = (int) floor(R/(1.0+Np*Xp/(Xi*1.0)+Nb*Xb/(Xi*1.4)) + 0.5);
     d = d0i;
     break;
   case P_TYPE:
+	  /*
+	  Nb*1.0*Xb/(1.4*Xp)  Nb相当于几个P帧
+	  最终计算出平均一帧的平均码率 T
+	  */
     T = (int) floor(R/(Np+Nb*1.0*Xb/(1.4*Xp)) + 0.5);
     d = d0p;
     break;
   case B_TYPE:
+	  /*
+	  Np*1.4*Xp/(1.0*Xb)  Np相当于几个B帧
+	  最终计算出平均一帧的平均码率 T
+	  */
     T = (int) floor(R/(Nb+Np*1.4*Xp/(1.0*Xb)) + 0.5);
     d = d0b;
     break;
@@ -198,9 +212,13 @@ unsigned char *frame;
 void rc_update_pict()
 {
   double X;
+  int bCount = 0;
 
-  S = bitcount() - S; /* total # of bits in picture */
+  bCount = bitcount();
+
+  S = bCount - S; /* total # of bits in picture */
   R-= S; /* remaining # of bits in GOP */
+  //当前帧的复杂度计算。 = 当前帧码率*平均量化值/2
   X = (int) floor(S*((0.5*(double)Q)/(mb_width*mb_height2)) + 0.5);
   d+= S - T;
   avg_act = actsum/(mb_width*mb_height2);
@@ -287,7 +305,10 @@ int j;
   double dj, Qj, actj, N_actj;
 
   /* measure virtual buffer discrepancy from uniform distribution model */
-  dj = d + (bitcount()-S) - j*(T/(mb_width*mb_height2));
+
+  int bCount = 0;
+  bCount = bitcount();
+  dj = d + (bCount - S) - j*(T / (mb_width*mb_height2));
 
   /* scale against dynamic range of mquant and the bits/picture count */
   Qj = dj*31.0/r;

@@ -100,7 +100,7 @@ struct mbinfo {
   int MV[2][2][2]; /* motion vectors */
   int mv_field_sel[2][2]; /* motion vertical field select */
   int dmvector[2]; /* dual prime vectors */
-  double act; /* activity measure */
+  double act; /* activity measure 记录16x16宏块，8x8 block中方差最小值 */
   int var; /* for debugging */
 };
 

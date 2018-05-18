@@ -235,9 +235,15 @@ EXTERN unsigned char map_non_linear_mquant[113]
 
 /* picture data arrays */
 
-/* reconstructed frames */
+/* reconstructed frames 
+* oldrefframe: reconstructed frame for forward prediction (P and B frames)
+* newrefframe: reconstructed frame for backward prediction (B frames only)
+*/
 EXTERN unsigned char *newrefframe[3], *oldrefframe[3], *auxframe[3];
-/* original frames */
+/* original frames 
+* oldorgframe: source frame for forward prediction (used for P and B frames)
+* neworgframe: source frame for backward prediction (B frames only)
+*/
 EXTERN unsigned char *neworgframe[3], *oldorgframe[3], *auxorgframe[3];
 /* prediction of current frame */
 EXTERN unsigned char *predframe[3];
