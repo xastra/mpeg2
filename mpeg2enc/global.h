@@ -331,7 +331,10 @@ EXTERN int back_hor_f_code, back_vert_f_code; /* motion vector ranges */
 EXTERN int dc_prec; /* DC coefficient precision for intra coded blocks */
 EXTERN int pict_struct; /* picture structure (frame, top / bottom field) */
 EXTERN int topfirst; /* display top field first */
-/* use only frame prediction and frame DCT (I,P,B,current) */
+
+/* use only frame prediction and frame DCT (I,P,B,current) 
+test.par:  1 0 0   frame_pred_frame_dct (I P B) 
+*/
 EXTERN int frame_pred_dct_tab[3], frame_pred_dct;
 EXTERN int conceal_tab[3]; /* use concealment motion vectors (I,P,B) */
 EXTERN int qscale_tab[3], q_scale_type; /* linear/non-linear quantizaton table */

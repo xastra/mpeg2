@@ -32,7 +32,7 @@ stat.out  /* name of statistics file ("-": stdout ) */
 128       /* display_vertical_size */
 1         /* intra_dc_precision (0: 8 bit, 1: 9 bit, 2: 10 bit, 3: 11 bit */
 1         /* top_field_first */
-1 0 0     /* frame_pred_frame_dct (I P B) */
+1 1 1     /* frame_pred_frame_dct (I P B) */
 0 0 0     /* concealment_motion_vectors (I P B) */
 0 1 1     /* q_scale_type  (I P B) */
 1 1 0     /* intra_vlc_format (I P B)*/

@@ -71,16 +71,17 @@ static int fullsearch _ANSI_ARGS_((unsigned char *org, unsigned char *ref,
   int lx, int i0, int j0, int sx, int sy, int h, int xmax, int ymax,
   int *iminp, int *jminp));
 
-static int dist1 _ANSI_ARGS_((unsigned char *blk1, unsigned char *blk2,
+/*计算两宏块的 　SAD（Sum of Absolute Difference）*/
+static int sad _ANSI_ARGS_((unsigned char *blk1, unsigned char *blk2,
   int lx, int hx, int hy, int h, int distlim));
 
-static int dist2 _ANSI_ARGS_((unsigned char *blk1, unsigned char *blk2,
+static int ssd _ANSI_ARGS_((unsigned char *blk1, unsigned char *blk2,
   int lx, int hx, int hy, int h));
 
-static int bdist1 _ANSI_ARGS_((unsigned char *pf, unsigned char *pb,
+static int sad_bd _ANSI_ARGS_((unsigned char *pf, unsigned char *pb,
   unsigned char *p2, int lx, int hxf, int hyf, int hxb, int hyb, int h));
 
-static int bdist2 _ANSI_ARGS_((unsigned char *pf, unsigned char *pb,
+static int ssd_bd _ANSI_ARGS_((unsigned char *pf, unsigned char *pb,
   unsigned char *p2, int lx, int hxf, int hyf, int hxb, int hyb, int h));
 
 static int variance _ANSI_ARGS_((unsigned char *p, int lx));
@@ -157,6 +158,7 @@ struct mbinfo *mbi;
 
   mb = cur + i + width*j;
 
+  //宏块方差
   var = variance(mb,width);
 
   if (pict_type==I_TYPE)
@@ -167,7 +169,7 @@ struct mbinfo *mbi;
     {
       dmc = fullsearch(oldorg,oldref,mb,
                        width,i,j,sxf,syf,16,width,height,&imin,&jmin);
-      vmc = dist2(oldref+(imin>>1)+width*(jmin>>1),mb,
+      vmc = ssd(oldref+(imin>>1)+width*(jmin>>1),mb,
                   width,imin&1,jmin&1,16);
       mbi->motion_type = MC_FRAME;
     }
@@ -191,16 +193,16 @@ struct mbinfo *mbi;
       else if (dmc<=dmcfield)
       {
         mbi->motion_type = MC_FRAME;
-        vmc = dist2(oldref+(imin>>1)+width*(jmin>>1),mb,
+        vmc = ssd(oldref+(imin>>1)+width*(jmin>>1),mb,
                     width,imin&1,jmin&1,16);
       }
       else
       {
         mbi->motion_type = MC_FIELD;
         dmc = dmcfield;
-        vmc = dist2(oldref+(tsel?width:0)+(imint>>1)+(width<<1)*(jmint>>1),
+        vmc = ssd(oldref+(tsel?width:0)+(imint>>1)+(width<<1)*(jmint>>1),
                     mb,width<<1,imint&1,jmint&1,8);
-        vmc+= dist2(oldref+(bsel?width:0)+(iminb>>1)+(width<<1)*(jminb>>1),
+        vmc+= ssd(oldref+(bsel?width:0)+(iminb>>1)+(width<<1)*(jminb>>1),
                     mb+width,width<<1,iminb&1,jminb&1,8);
       }
     }
@@ -212,6 +214,9 @@ struct mbinfo *mbi;
      *
      * blocks with small prediction error are always coded non-intra
      * even if variance is smaller (is this reasonable?)
+
+	 1、如果运动补偿的方差太大，则使用帧内压缩。否则使用帧间预测
+	 2、对比运动矢量为0与最小mc比较。
      */
     if (vmc>var && vmc>=9*256)
       mbi->mb_type = MB_INTRA;
@@ -225,7 +230,7 @@ struct mbinfo *mbi;
        * blocks with small prediction error are always coded as No-MC
        * (requires no motion vectors, allows skipping)
        */
-      v0 = dist2(oldref+i+width*j,mb,width,0,0,16);
+      v0 = ssd(oldref+i+width*j,mb,width,0,0,16);
       if (4*v0>5*vmc && v0>=9*256)
       {
         /* use MC */
@@ -276,17 +281,17 @@ struct mbinfo *mbi;
       /* forward */
       dmcf = fullsearch(oldorg,oldref,mb,
                         width,i,j,sxf,syf,16,width,height,&iminf,&jminf);
-      vmcf = dist2(oldref+(iminf>>1)+width*(jminf>>1),mb,
+      vmcf = ssd(oldref+(iminf>>1)+width*(jminf>>1),mb,
                    width,iminf&1,jminf&1,16);
 
       /* backward */
       dmcr = fullsearch(neworg,newref,mb,
                         width,i,j,sxb,syb,16,width,height,&iminr,&jminr);
-      vmcr = dist2(newref+(iminr>>1)+width*(jminr>>1),mb,
+      vmcr = ssd(newref+(iminr>>1)+width*(jminr>>1),mb,
                    width,iminr&1,jminr&1,16);
 
       /* interpolated (bidirectional) */
-      vmci = bdist2(oldref+(iminf>>1)+width*(jminf>>1),
+      vmci = ssd_bd(oldref+(iminf>>1)+width*(jminf>>1),
                     newref+(iminr>>1)+width*(jminr>>1),
                     mb,width,iminf&1,jminf&1,iminr&1,jminr&1,16);
 
@@ -327,18 +332,18 @@ struct mbinfo *mbi;
 
       /* calculate interpolated distance */
       /* frame */
-      dmci = bdist1(oldref+(iminf>>1)+width*(jminf>>1),
+      dmci = sad_bd(oldref+(iminf>>1)+width*(jminf>>1),
                     newref+(iminr>>1)+width*(jminr>>1),
                     mb,width,iminf&1,jminf&1,iminr&1,jminr&1,16);
 
       /* top field */
-      dmcfieldi = bdist1(
+      dmcfieldi = sad_bd(
                     oldref+(imintf>>1)+(tself?width:0)+(width<<1)*(jmintf>>1),
                     newref+(imintr>>1)+(tselr?width:0)+(width<<1)*(jmintr>>1),
                     mb,width<<1,imintf&1,jmintf&1,imintr&1,jmintr&1,8);
 
       /* bottom field */
-      dmcfieldi+= bdist1(
+      dmcfieldi+= sad_bd(
                     oldref+(iminbf>>1)+(bself?width:0)+(width<<1)*(jminbf>>1),
                     newref+(iminbr>>1)+(bselr?width:0)+(width<<1)*(jminbr>>1),
                     mb+width,width<<1,iminbf&1,jminbf&1,iminbr&1,jminbr&1,8);
@@ -352,7 +357,7 @@ struct mbinfo *mbi;
         /* frame, interpolated */
         mbi->mb_type = MB_FORWARD|MB_BACKWARD;
         mbi->motion_type = MC_FRAME;
-        vmc = bdist2(oldref+(iminf>>1)+width*(jminf>>1),
+        vmc = ssd_bd(oldref+(iminf>>1)+width*(jminf>>1),
                      newref+(iminr>>1)+width*(jminr>>1),
                      mb,width,iminf&1,jminf&1,iminr&1,jminr&1,16);
       }
@@ -362,10 +367,10 @@ struct mbinfo *mbi;
         /* field, interpolated */
         mbi->mb_type = MB_FORWARD|MB_BACKWARD;
         mbi->motion_type = MC_FIELD;
-        vmc = bdist2(oldref+(imintf>>1)+(tself?width:0)+(width<<1)*(jmintf>>1),
+        vmc = ssd_bd(oldref+(imintf>>1)+(tself?width:0)+(width<<1)*(jmintf>>1),
                      newref+(imintr>>1)+(tselr?width:0)+(width<<1)*(jmintr>>1),
                      mb,width<<1,imintf&1,jmintf&1,imintr&1,jmintr&1,8);
-        vmc+= bdist2(oldref+(iminbf>>1)+(bself?width:0)+(width<<1)*(jminbf>>1),
+        vmc+= ssd_bd(oldref+(iminbf>>1)+(bself?width:0)+(width<<1)*(jminbf>>1),
                      newref+(iminbr>>1)+(bselr?width:0)+(width<<1)*(jminbr>>1),
                      mb+width,width<<1,iminbf&1,jminbf&1,iminbr&1,jminbr&1,8);
       }
@@ -374,7 +379,7 @@ struct mbinfo *mbi;
         /* frame, forward */
         mbi->mb_type = MB_FORWARD;
         mbi->motion_type = MC_FRAME;
-        vmc = dist2(oldref+(iminf>>1)+width*(jminf>>1),mb,
+        vmc = ssd(oldref+(iminf>>1)+width*(jminf>>1),mb,
                     width,iminf&1,jminf&1,16);
       }
       else if (dmcfieldf<dmcr && dmcfieldf<dmcfieldr)
@@ -382,9 +387,9 @@ struct mbinfo *mbi;
         /* field, forward */
         mbi->mb_type = MB_FORWARD;
         mbi->motion_type = MC_FIELD;
-        vmc = dist2(oldref+(tself?width:0)+(imintf>>1)+(width<<1)*(jmintf>>1),
+        vmc = ssd(oldref+(tself?width:0)+(imintf>>1)+(width<<1)*(jmintf>>1),
                     mb,width<<1,imintf&1,jmintf&1,8);
-        vmc+= dist2(oldref+(bself?width:0)+(iminbf>>1)+(width<<1)*(jminbf>>1),
+        vmc+= ssd(oldref+(bself?width:0)+(iminbf>>1)+(width<<1)*(jminbf>>1),
                     mb+width,width<<1,iminbf&1,jminbf&1,8);
       }
       else if (dmcr<dmcfieldr)
@@ -392,7 +397,7 @@ struct mbinfo *mbi;
         /* frame, backward */
         mbi->mb_type = MB_BACKWARD;
         mbi->motion_type = MC_FRAME;
-        vmc = dist2(newref+(iminr>>1)+width*(jminr>>1),mb,
+        vmc = ssd(newref+(iminr>>1)+width*(jminr>>1),mb,
                     width,iminr&1,jminr&1,16);
       }
       else
@@ -400,9 +405,9 @@ struct mbinfo *mbi;
         /* field, backward */
         mbi->mb_type = MB_BACKWARD;
         mbi->motion_type = MC_FIELD;
-        vmc = dist2(newref+(tselr?width:0)+(imintr>>1)+(width<<1)*(jmintr>>1),
+        vmc = ssd(newref+(tselr?width:0)+(imintr>>1)+(width<<1)*(jmintr>>1),
                     mb,width<<1,imintr&1,jmintr&1,8);
-        vmc+= dist2(newref+(bselr?width:0)+(iminbr>>1)+(width<<1)*(jminbr>>1),
+        vmc+= ssd(newref+(bselr?width:0)+(iminbr>>1)+(width<<1)*(jminbr>>1),
                     mb+width,width<<1,iminbr&1,jminbr&1,8);
       }
     }
@@ -552,17 +557,17 @@ int secondfield,ipflag;
       /* 16x8 prediction */
       mbi->motion_type = MC_16X8;
       /* upper half block */
-      vmc = dist2((sel8u?botref:topref) + (imin8u>>1) + w2*(jmin8u>>1),
+      vmc = ssd((sel8u?botref:topref) + (imin8u>>1) + w2*(jmin8u>>1),
                   mb,w2,imin8u&1,jmin8u&1,8);
       /* lower half block */
-      vmc+= dist2((sel8l?botref:topref) + (imin8l>>1) + w2*(jmin8l>>1),
+      vmc+= ssd((sel8l?botref:topref) + (imin8l>>1) + w2*(jmin8l>>1),
                   mb+8*w2,w2,imin8l&1,jmin8l&1,8);
     }
     else
     {
       /* field prediction */
       mbi->motion_type = MC_FIELD;
-      vmc = dist2((sel?botref:topref) + (imin>>1) + w2*(jmin>>1),
+      vmc = ssd((sel?botref:topref) + (imin>>1) + w2*(jmin>>1),
                   mb,w2,imin&1,jmin&1,16);
     }
 
@@ -575,7 +580,7 @@ int secondfield,ipflag;
        * (not allowed if ipflag is set)
        */
       if (!ipflag)
-        v0 = dist2(((pict_struct==BOTTOM_FIELD)?botref:topref) + i + w2*j,
+        v0 = ssd(((pict_struct==BOTTOM_FIELD)?botref:topref) + i + w2*j,
                    mb,w2,0,0,16);
       if (ipflag || (4*v0>5*vmc && v0>=9*256))
       {
@@ -635,17 +640,17 @@ int secondfield,ipflag;
 
     /* calculate distances for bidirectional prediction */
     /* field */
-    dmcfieldi = bdist1(oldref + (self?width:0) + (iminf>>1) + w2*(jminf>>1),
+    dmcfieldi = sad_bd(oldref + (self?width:0) + (iminf>>1) + w2*(jminf>>1),
                        newref + (selr?width:0) + (iminr>>1) + w2*(jminr>>1),
                        mb,w2,iminf&1,jminf&1,iminr&1,jminr&1,16);
 
     /* 16x8 upper half block */
-    dmc8i = bdist1(oldref + (sel8uf?width:0) + (imin8uf>>1) + w2*(jmin8uf>>1),
+    dmc8i = sad_bd(oldref + (sel8uf?width:0) + (imin8uf>>1) + w2*(jmin8uf>>1),
                    newref + (sel8ur?width:0) + (imin8ur>>1) + w2*(jmin8ur>>1),
                    mb,w2,imin8uf&1,jmin8uf&1,imin8ur&1,jmin8ur&1,8);
 
     /* 16x8 lower half block */
-    dmc8i+= bdist1(oldref + (sel8lf?width:0) + (imin8lf>>1) + w2*(jmin8lf>>1),
+    dmc8i+= sad_bd(oldref + (sel8lf?width:0) + (imin8lf>>1) + w2*(jmin8lf>>1),
                    newref + (sel8lr?width:0) + (imin8lr>>1) + w2*(jmin8lr>>1),
                    mb+8*w2,w2,imin8lf&1,jmin8lf&1,imin8lr&1,jmin8lr&1,8);
 
@@ -656,7 +661,7 @@ int secondfield,ipflag;
       /* field, interpolated */
       mbi->mb_type = MB_FORWARD|MB_BACKWARD;
       mbi->motion_type = MC_FIELD;
-      vmc = bdist2(oldref + (self?width:0) + (iminf>>1) + w2*(jminf>>1),
+      vmc = ssd_bd(oldref + (self?width:0) + (iminf>>1) + w2*(jminf>>1),
                    newref + (selr?width:0) + (iminr>>1) + w2*(jminr>>1),
                    mb,w2,iminf&1,jminf&1,iminr&1,jminr&1,16);
     }
@@ -668,12 +673,12 @@ int secondfield,ipflag;
       mbi->motion_type = MC_16X8;
 
       /* upper half block */
-      vmc = bdist2(oldref + (sel8uf?width:0) + (imin8uf>>1) + w2*(jmin8uf>>1),
+      vmc = ssd_bd(oldref + (sel8uf?width:0) + (imin8uf>>1) + w2*(jmin8uf>>1),
                    newref + (sel8ur?width:0) + (imin8ur>>1) + w2*(jmin8ur>>1),
                    mb,w2,imin8uf&1,jmin8uf&1,imin8ur&1,jmin8ur&1,8);
 
       /* lower half block */
-      vmc+= bdist2(oldref + (sel8lf?width:0) + (imin8lf>>1) + w2*(jmin8lf>>1),
+      vmc+= ssd_bd(oldref + (sel8lf?width:0) + (imin8lf>>1) + w2*(jmin8lf>>1),
                    newref + (sel8lr?width:0) + (imin8lr>>1) + w2*(jmin8lr>>1),
                    mb+8*w2,w2,imin8lf&1,jmin8lf&1,imin8lr&1,jmin8lr&1,8);
     }
@@ -682,7 +687,7 @@ int secondfield,ipflag;
       /* field, forward */
       mbi->mb_type = MB_FORWARD;
       mbi->motion_type = MC_FIELD;
-      vmc = dist2(oldref + (self?width:0) + (iminf>>1) + w2*(jminf>>1),
+      vmc = ssd(oldref + (self?width:0) + (iminf>>1) + w2*(jminf>>1),
                   mb,w2,iminf&1,jminf&1,16);
     }
     else if (dmc8f<dmcfieldr && dmc8f<dmc8r)
@@ -692,11 +697,11 @@ int secondfield,ipflag;
       mbi->motion_type = MC_16X8;
 
       /* upper half block */
-      vmc = dist2(oldref + (sel8uf?width:0) + (imin8uf>>1) + w2*(jmin8uf>>1),
+      vmc = ssd(oldref + (sel8uf?width:0) + (imin8uf>>1) + w2*(jmin8uf>>1),
                   mb,w2,imin8uf&1,jmin8uf&1,8);
 
       /* lower half block */
-      vmc+= dist2(oldref + (sel8lf?width:0) + (imin8lf>>1) + w2*(jmin8lf>>1),
+      vmc+= ssd(oldref + (sel8lf?width:0) + (imin8lf>>1) + w2*(jmin8lf>>1),
                   mb+8*w2,w2,imin8lf&1,jmin8lf&1,8);
     }
     else if (dmcfieldr<dmc8r)
@@ -704,7 +709,7 @@ int secondfield,ipflag;
       /* field, backward */
       mbi->mb_type = MB_BACKWARD;
       mbi->motion_type = MC_FIELD;
-      vmc = dist2(newref + (selr?width:0) + (iminr>>1) + w2*(jminr>>1),
+      vmc = ssd(newref + (selr?width:0) + (iminr>>1) + w2*(jminr>>1),
                   mb,w2,iminr&1,jminr&1,16);
     }
     else
@@ -714,11 +719,11 @@ int secondfield,ipflag;
       mbi->motion_type = MC_16X8;
 
       /* upper half block */
-      vmc = dist2(newref + (sel8ur?width:0) + (imin8ur>>1) + w2*(jmin8ur>>1),
+      vmc = ssd(newref + (sel8ur?width:0) + (imin8ur>>1) + w2*(jmin8ur>>1),
                   mb,w2,imin8ur&1,jmin8ur&1,8);
 
       /* lower half block */
-      vmc+= dist2(newref + (sel8lr?width:0) + (imin8lr>>1) + w2*(jmin8lr>>1),
+      vmc+= ssd(newref + (sel8lr?width:0) + (imin8lr>>1) + w2*(jmin8lr>>1),
                   mb+8*w2,w2,imin8lr&1,jmin8lr&1,8);
     }
 
@@ -1075,14 +1080,14 @@ int *dmcp,*vmcp;
                 jb >= 0 && jb <= (height-16))
             {
               /* compute prediction error */
-              local_dist = bdist2(
+              local_dist = ssd_bd(
                 ref + (is>>1) + (width<<1)*(js>>1),
                 ref + width + (it>>1) + (width<<1)*(jt>>1),
                 mb,             /* current mb location */
                 width<<1,       /* adjacent line distance */
                 is&1, js&1, it&1, jt&1, /* half-pel flags */
                 8);             /* block height */
-              local_dist += bdist2(
+              local_dist += ssd_bd(
                 ref + width + (is>>1) + (width<<1)*(js>>1),
                 ref + (ib>>1) + (width<<1)*(jb>>1),
                 mb + width,     /* current mb location */
@@ -1111,14 +1116,14 @@ int *dmcp,*vmcp;
   }
 
   /* Compute L1 error for decision purposes */
-  local_dist = bdist1(
+  local_dist = sad_bd(
     ref + (imins>>1) + (width<<1)*(jmins>>1),
     ref + width + (imint>>1) + (width<<1)*(jmint>>1),
     mb,
     width<<1,
     imins&1, jmins&1, imint&1, jmint&1,
     8);
-  local_dist += bdist1(
+  local_dist += sad_bd(
     ref + width + (imins>>1) + (width<<1)*(jmins>>1),
     ref + (iminb>>1) + (width<<1)*(jminb>>1),
     mb + width,
@@ -1196,7 +1201,7 @@ int *dmcp,*vmcp;
           jo >= 0 && jo <= (height2-16)<<1)
       {
         /* compute prediction error */
-        local_dist = bdist2(
+        local_dist = ssd_bd(
           sameref + (imins>>1) + width2*(jmins>>1),
           oppref  + (io>>1)    + width2*(jo>>1),
           mb,             /* current mb location */
@@ -1218,7 +1223,7 @@ int *dmcp,*vmcp;
   } /* end delta y loop */
 
   /* Compute L1 error for decision purposes */
-  *dmcp = bdist1(
+  *dmcp = sad_bd(
     sameref + (imins>>1) + width2*(jmins>>1),
     oppref  + (imino>>1) + width2*(jmino>>1),
     mb,             /* current mb location */
@@ -1245,7 +1250,32 @@ int *dmcp,*vmcp;
  * iminp,jminp: pointers to where the result is stored
  *              result is given as half pel offset from ref(0,0)
  *              i.e. NOT relative to (i0,j0)
- */
+ *@return: min sad
+
+					ilow(i0-sx)	 i0	ihigh(i0+sx)		  xmax        x
+			———————————————————————————>
+			|            |       |		 |
+			|            |       |		 |
+			|			 |		 |		 |
+			|			 |		 |		 |
+jlow(j0-sy) |			 .		 |		 .
+			|			 |		 |		 |
+			|			 |		 |		 |
+		  j0|___________ .       .       .
+			|
+			|
+			|
+jhigh(j0+sy)|____________.       .       .
+			|
+			|
+ymax		|											   .	
+			|
+			|
+		   y∨											 
+
+
+整数像素是在org上搜索，半像素是在ref上搜索。
+*/
 static int fullsearch(org,ref,blk,lx,i0,j0,sx,sy,h,xmax,ymax,iminp,jminp)
 unsigned char *org,*ref,*blk;
 int lx,i0,j0,sx,sy,h,xmax,ymax;
@@ -1277,7 +1307,7 @@ int *iminp,*jminp;
 
   imin = i0;
   jmin = j0;
-  dmin = dist1(org+imin+lx*jmin,blk,lx,0,0,h,65536);
+  dmin = sad(org+imin+lx*jmin,blk,lx,0,0,h,65536);
 
   sxy = (sx>sy) ? sx : sy;
 
@@ -1289,7 +1319,7 @@ int *iminp,*jminp;
     {
       if (i>=ilow && i<=ihigh && j>=jlow && j<=jhigh)
       {
-        d = dist1(org+i+lx*j,blk,lx,0,0,h,dmin);
+        d = sad(org+i+lx*j,blk,lx,0,0,h,dmin);
 
         if (d<dmin)
         {
@@ -1298,7 +1328,9 @@ int *iminp,*jminp;
           jmin = j;
         }
       }
-
+	  /*
+	  搜索范围为偏离点(i0,j0) 距离为l的矩形，按矩形一圈一圈往外搜索。
+	  */
       if      (k<2*l) i++;
       else if (k<4*l) j++;
       else if (k<6*l) i--;
@@ -1308,6 +1340,7 @@ int *iminp,*jminp;
 
   /* half pel */
   dmin = 65536;
+  //水平，垂直内插半像素，重新映射最小sad点坐标。
   imin <<= 1;
   jmin <<= 1;
   ilow = imin - (imin>0);
@@ -1318,7 +1351,7 @@ int *iminp,*jminp;
   for (j=jlow; j<=jhigh; j++)
     for (i=ilow; i<=ihigh; i++)
     {
-      d = dist1(ref+(i>>1)+lx*(j>>1),blk,lx,i&1,j&1,h,dmin);
+      d = sad(ref+(i>>1)+lx*(j>>1),blk,lx,i&1,j&1,h,dmin);
 
       if (d<dmin)
       {
@@ -1343,7 +1376,7 @@ int *iminp,*jminp;
  * h:         height of block (usually 8 or 16)
  * distlim:   bail out if sum exceeds this value
  */
-static int dist1(blk1,blk2,lx,hx,hy,h,distlim)
+static int sad(blk1,blk2,lx,hx,hy,h,distlim)
 unsigned char *blk1,*blk2;
 int lx,hx,hy,h;
 int distlim;
@@ -1444,7 +1477,7 @@ int distlim;
  * hx,hy:     flags for horizontal and/or vertical interpolation
  * h:         height of block (usually 8 or 16)
  */
-static int dist2(blk1,blk2,lx,hx,hy,h)
+static int ssd(blk1,blk2,lx,hx,hy,h)
 unsigned char *blk1,*blk2;
 int lx,hx,hy,h;
 {
@@ -1521,7 +1554,7 @@ int lx,hx,hy,h;
  * h: height of block
  * lx: distance (in bytes) of vertically adjacent pels in p2,pf,pb
  */
-static int bdist1(pf,pb,p2,lx,hxf,hyf,hxb,hyb,h)
+static int sad_bd(pf,pb,p2,lx,hxf,hyf,hxb,hyb,h)
 unsigned char *pf,*pb,*p2;
 int lx,hxf,hyf,hxb,hyb,h;
 {
@@ -1575,7 +1608,7 @@ int lx,hxf,hyf,hxb,hyb,h;
  * h: height of block
  * lx: distance (in bytes) of vertically adjacent pels in p2,pf,pb
  */
-static int bdist2(pf,pb,p2,lx,hxf,hyf,hxb,hyb,h)
+static int ssd_bd(pf,pb,p2,lx,hxf,hyf,hxb,hyb,h)
 unsigned char *pf,*pb,*p2;
 int lx,hxf,hyf,hxb,hyb,h;
 {
